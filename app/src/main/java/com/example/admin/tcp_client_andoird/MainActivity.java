@@ -29,6 +29,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.Set;
 
+@SuppressWarnings("ALL")
 public class MainActivity extends AppCompatActivity {
     /*Variables*/
     private static final int ROVER_PORT = 4445;
@@ -94,20 +95,17 @@ public class MainActivity extends AppCompatActivity {
         AnhXa();
         SetDefaultText();
         Button sendButton = (Button) findViewById(R.id.buttonSend);
-        sendButton.setOnClickListener(new View.OnClickListener() {
-            @Override
+        sendButton.setOnClickListener(new View.OnClickListener() {@Override
 
-            public void onClick(View v) {
-                    if (usbService != null) { // if UsbService was correctly binded, Send data
-                        usbService.write(bytesRead,buffer);
+        public void onClick(View v) {
 
-                    }
+
                 }
 
         });
 
         btnConnectServer.setOnClickListener(new View.OnClickListener() {
-            @Override
+          @Override
             public void onClick(View v) {
                 new connectServerTask().execute();
             }
@@ -265,6 +263,10 @@ public class MainActivity extends AppCompatActivity {
                     bytesRead = in.read(buffer);
                     log("Read"+bytesRead+"bytes");
                     log(new String(buffer,0,bytesRead));
+                        if (usbService != null) { // if UsbService was correctly binded, Send data
+                                usbService.write(buffer);
+
+                            };
                 } catch (IOException e) {
                     e.printStackTrace();
                 }

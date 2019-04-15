@@ -168,7 +168,7 @@ import java.util.Map;
         /*
          * This function will be called from MainActivity to write data through Serial Port
          */
-        public void write(int bytesRead, byte[] data) {
+        public void write( byte[] data) {
             if (serialPort != null)
                 serialPort.syncWrite(data, 0);
         }
