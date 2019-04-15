@@ -1,22 +1,33 @@
 package com.example.admin.tcp_client_andoird;
 
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.os.AsyncTask;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
-
-import com.ftdi.j2xx.D2xxManager;
-import com.ftdi.j2xx.FT_Device;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
     /*Variables*/
@@ -26,21 +37,74 @@ public class MainActivity extends AppCompatActivity {
     private boolean serverConnected = false;
     private boolean serialConnected = false;
     private static DataOutputStream out;
+    private static final int BUFFER_LENGTH = 4000;
+    private static byte[] buffer = new byte[BUFFER_LENGTH];
+    private static int bytesRead;
+
 
     private TextView textViewLog;
     private Button btnConnectServer,btnConnectSerial;
-    private static D2xxManager ftD2xx = null;
-    private FT_Device ftDev;
 
+    private final BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            switch (intent.getAction()) {
+                case UsbService.ACTION_USB_PERMISSION_GRANTED: // USB PERMISSION GRANTED
+                    Toast.makeText(context, "USB Ready", Toast.LENGTH_SHORT).show();
+                    break;
+                case UsbService.ACTION_USB_PERMISSION_NOT_GRANTED: // USB PERMISSION NOT GRANTED
+                    Toast.makeText(context, "USB Permission not granted", Toast.LENGTH_SHORT).show();
+                    break;
+                case UsbService.ACTION_NO_USB: // NO USB CONNECTED
+                    Toast.makeText(context, "No USB connected", Toast.LENGTH_SHORT).show();
+                    break;
+                case UsbService.ACTION_USB_DISCONNECTED: // USB DISCONNECTED
+                    Toast.makeText(context, "USB disconnected", Toast.LENGTH_SHORT).show();
+                    break;
+                case UsbService.ACTION_USB_NOT_SUPPORTED: // USB NOT SUPPORTED
+                    Toast.makeText(context, "USB device not supported", Toast.LENGTH_SHORT).show();
+                    break;
+            }
+        }
+    };
+    private UsbService usbService;
+    private MyHandler mHandler;
+    private CheckBox box9600, box38400;
+    private final ServiceConnection usbConnection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName arg0, IBinder arg1) {
+            usbService = ((UsbService.UsbBinder) arg1).getService();
+            usbService.setHandler(mHandler);
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName arg0) {
+            usbService = null;
+        }
+    };
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        mHandler = new MyHandler(this);
+
 
         AnhXa();
         SetDefaultText();
+        Button sendButton = (Button) findViewById(R.id.buttonSend);
+        sendButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+
+            public void onClick(View v) {
+                    if (usbService != null) { // if UsbService was correctly binded, Send data
+                        usbService.write(bytesRead,buffer);
+
+                    }
+                }
+
+        });
 
         btnConnectServer.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -48,14 +112,83 @@ public class MainActivity extends AppCompatActivity {
                 new connectServerTask().execute();
             }
         });
-        btnConnectSerial.setOnClickListener(new View.OnClickListener() {
+
+
+        box9600 = (CheckBox) findViewById(R.id.checkBox);
+        box9600.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if(box9600.isChecked())
+                    box38400.setChecked(false);
+                else
+                    box38400.setChecked(true);
+            }
+        });
+
+        box38400 = (CheckBox) findViewById(R.id.checkBox2);
+        box38400.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if(box38400.isChecked())
+                    box9600.setChecked(false);
+                else
+                    box9600.setChecked(true);
+            }
+        });
+
+        Button baudrateButton = (Button) findViewById(R.id.buttonBaudrate);
+        baudrateButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-               connectSerial();
+                if(box9600.isChecked())
+                    usbService.changeBaudRate(9600);
+                else
+                    usbService.changeBaudRate(38400);
             }
         });
     }
+    @Override
+    public void onResume() {
+        super.onResume();
+        setFilters();  // Start listening notifications from UsbService
+        startService(UsbService.class, usbConnection, null); // Start UsbService(if it was not started before) and Bind it
+    }
 
+    @Override
+    public void onPause() {
+        super.onPause();
+        unregisterReceiver(mUsbReceiver);
+        unbindService(usbConnection);
+    }
+    private void startService(Class<?> service, ServiceConnection serviceConnection, Bundle extras) {
+        if (!UsbService.SERVICE_CONNECTED) {
+            Intent startService = new Intent(this, service);
+            if (extras != null && !extras.isEmpty()) {
+                Set<String> keys = extras.keySet();
+                for (String key : keys) {
+                    String extra = extras.getString(key);
+                    startService.putExtra(key, extra);
+                }
+            }
+            startService(startService);
+        }
+        Intent bindingIntent = new Intent(this, service);
+        bindService(bindingIntent, serviceConnection, Context.BIND_AUTO_CREATE);
+    }
+
+    private void setFilters() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(UsbService.ACTION_USB_PERMISSION_GRANTED);
+        filter.addAction(UsbService.ACTION_NO_USB);
+        filter.addAction(UsbService.ACTION_USB_DISCONNECTED);
+        filter.addAction(UsbService.ACTION_USB_NOT_SUPPORTED);
+        filter.addAction(UsbService.ACTION_USB_PERMISSION_NOT_GRANTED);
+        registerReceiver(mUsbReceiver, filter);
+    }
+
+    /*
+     * This handler will be passed to UsbService. Data received from serial port is displayed through this handler
+     */
     private void SetDefaultText() {
         textViewLog.setText("Status Displayed Here");
     }
@@ -64,6 +197,7 @@ public class MainActivity extends AppCompatActivity {
         textViewLog = findViewById(R.id.textLogger);
         btnConnectServer = findViewById(R.id.btnConnectServer);
         btnConnectSerial = findViewById(R.id.btnConnectSerial);
+        Button baudrateButton = (Button) findViewById(R.id.buttonBaudrate);
     }
 
     private void log(String msg) {
@@ -71,42 +205,6 @@ public class MainActivity extends AppCompatActivity {
         LogTask task = new LogTask(textViewLog,msg);
         task.execute();
     }
-
-    private void connectSerial()
-    {
-        try {
-            ftD2xx = D2xxManager.getInstance(this);
-        } catch (D2xxManager.D2xxException ex) {
-            log(ex.toString());
-        }
-        int devCount = ftD2xx.createDeviceInfoList(getBaseContext());
-
-        log("Device number : " + Integer.toString(devCount));
-
-        D2xxManager.FtDeviceInfoListNode[] deviceList = new D2xxManager.FtDeviceInfoListNode[devCount];
-        ftD2xx.getDeviceInfoList(devCount, deviceList);
-
-        if (devCount <= 0) {
-            return;
-        }
-
-        if (ftDev == null) {
-            ftDev = ftD2xx.openByIndex(getBaseContext(), 0);
-            log("Open serial port");
-        }
-
-        if (ftDev.isOpen()) {
-
-            ftDev.setBaudRate(9600);
-            ftDev.setBitMode((byte) 0, D2xxManager.FT_BITMODE_RESET);
-            ftDev.setDataCharacteristics(D2xxManager.FT_DATA_BITS_8, D2xxManager.FT_STOP_BITS_1, D2xxManager.FT_PARITY_NONE);
-            ftDev.setFlowControl(D2xxManager.FT_FLOW_NONE, (byte) 0x0b, (byte) 0x0d);
-            log("Set parameters");
-            serialConnected = true;
-        }
-    }
-
-
 
 
 
@@ -148,8 +246,7 @@ public class MainActivity extends AppCompatActivity {
     public class CommunicationThread implements Runnable{
         private Socket clientSocket;
         private DataInputStream in;
-        private int bytesRead;
-        private static final int BUFFER_LENGTH = 4000;
+
         private byte[] buffer = new byte[BUFFER_LENGTH];
 
         public CommunicationThread(Socket clientSocket) {
@@ -160,7 +257,6 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
         }
-
         @Override
         public void run() {
             while(!Thread.currentThread().isInterrupted()){
@@ -172,6 +268,34 @@ public class MainActivity extends AppCompatActivity {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+            }
+        }
+    }
+
+    private static class MyHandler extends Handler {
+        private final WeakReference<MainActivity> mActivity;
+
+        public MyHandler(MainActivity activity) {
+            mActivity = new WeakReference<>(activity);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            switch (msg.what) {
+                case UsbService.MESSAGE_FROM_SERIAL_PORT:
+                    String data = (String) msg.obj;
+                    mActivity.get().textViewLog.append(data);
+                    break;
+                case UsbService.CTS_CHANGE:
+                    Toast.makeText(mActivity.get(), "CTS_CHANGE",Toast.LENGTH_LONG).show();
+                    break;
+                case UsbService.DSR_CHANGE:
+                    Toast.makeText(mActivity.get(), "DSR_CHANGE",Toast.LENGTH_LONG).show();
+                    break;
+                case UsbService.SYNC_READ:
+                    String buffer = (String) msg.obj;
+                    mActivity.get().textViewLog.append(buffer);
+                    break;
             }
         }
     }
