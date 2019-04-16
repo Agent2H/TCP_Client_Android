@@ -170,7 +170,7 @@ import java.util.Map;
          */
         public void write(byte[] data) {
             if (serialPort != null)
-                serialPort.syncWrite(data, 0);
+                serialPort.syncWrite(data, 1000  );
         }
 
         /*

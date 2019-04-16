@@ -41,6 +41,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int BUFFER_LENGTH = 4000;
     private static byte[] buffer = new byte[BUFFER_LENGTH];
     private static int bytesRead;
+    public static byte[] tempbuffer = {1,1,1,1,1,1,1,1,1,1};
 
 
     private TextView textViewLog;
@@ -112,7 +113,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
 
-        box9600 = (CheckBox) findViewById(R.id.checkBox);
+
         box9600.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -123,7 +124,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        box38400 = (CheckBox) findViewById(R.id.checkBox2);
+
         box38400.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
@@ -196,7 +197,10 @@ public class MainActivity extends AppCompatActivity {
         btnConnectServer = findViewById(R.id.btnConnectServer);
         btnConnectSerial = findViewById(R.id.btnConnectSerial);
         Button baudrateButton = (Button) findViewById(R.id.buttonBaudrate);
+        box9600 = (CheckBox) findViewById(R.id.checkBox);
+        box38400 = (CheckBox) findViewById(R.id.checkBox2);
     }
+
 
     private void log(String msg) {
         System.out.println(textViewLog.getText());
@@ -266,7 +270,12 @@ public class MainActivity extends AppCompatActivity {
                     log(new String(buffer,0,bytesRead));
                     if (!buffer.equals("")) {
                         if (usbService != null) { // if UsbService was correctly binded, Send data
-                        usbService.write(buffer);
+                       for(int i=0;i<10;i++){
+                           tempbuffer[i]+=1;
+
+                       }
+                       System.out.println(buffer);
+                       usbService.write(buffer);
                     }};
 
                 } catch (IOException e) {
