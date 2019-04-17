@@ -215,7 +215,7 @@ public class MainActivity extends AppCompatActivity {
         protected Void doInBackground(Void... voids) {
 
             try {
-                InetAddress serverAddr = InetAddress.getByName("192.168.5.221");
+                InetAddress serverAddr = InetAddress.getByName("192.168.5.50");
                 socket = new Socket(serverAddr,ROVER_PORT);
                 out = new DataOutputStream(socket.getOutputStream());
 
@@ -266,14 +266,14 @@ public class MainActivity extends AppCompatActivity {
 
                     System.out.println("Thread is running");
                     bytesRead = in.read(buffer);
-                    log("Read"+bytesRead+"bytes");
-                    log(new String(buffer,0,bytesRead));
+//                    log("Read"+bytesRead+"bytes");
+//                    log(new String(buffer,0,bytesRead));
                     if (!buffer.equals("")) {
                         if (usbService != null) { // if UsbService was correctly binded, Send data
-                       for(int i=0;i<10;i++){
-                           tempbuffer[i]+=1;
+                       //for(int i=0;i<10;i++){
+                          // tempbuffer[i]+=1;
 
-                       }
+                      // }
                        System.out.println(buffer);
                        usbService.write(buffer);
                     }};
